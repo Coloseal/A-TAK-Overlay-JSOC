@@ -1,4 +1,4 @@
-latest=1.0.1
+latest=1.1.0
 minimum=1.0.0
 url=https://github.com/Coloseal/A-TAK-Overlay-JSOC/releases/latest
-notes=Sharper tablet, Custom Wrap themes, Ctrl+F1 default, alt-tab fix
+notes=New pilot display, secure browser, timers and tools, live corner view, one-click updates
