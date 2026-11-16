@@ -1,0 +1,58 @@
+TAC MAP OVERLAY - WHAT IT DOES AND DOES NOT DO
+===============================================
+
+It is a window that shows your tac map website inside a picture of a tablet / helicopter display, on top of your
+game. It is open source (MIT license, see LICENSE.txt). You can read every line and build it yourself (build.ps1).
+
+IT DOES NOT
+-----------
+- need administrator rights. It never asks for them. (The program states this in its own manifest: "asInvoker".)
+- install anything: no installer, no service, no driver, no scheduled task. Delete the folder and it is gone.
+- hook the keyboard or mouse, record keystrokes, or read what you type. Shortcuts use Windows' normal "register a hotkey"
+  feature, which only tells the app when YOUR chosen key combinations are pressed. Hold-to-peek works from the repeat of
+  that same hotkey - the app never reads the state of any other key.
+- touch, read, inject into or modify the game or any other program. It is a separate window on top of the game.
+  (It only asks Windows for the name of the program in front, and only if you turn on "Only show while the game is in front".)
+- take screenshots or record the screen by itself. The SCREENSHOT button copies the web page you are looking at to your
+  clipboard, only when you press it.
+- collect, send or sell any data about you. There is no telemetry, analytics, account or tracking of its own.
+
+WHAT IT CONNECTS TO
+-------------------
+1. Your tac map website (the address in Settings) and any website YOU open in the built-in browser.
+2. GitHub, for updates: at start it reads one small text file (version.txt) from raw.githubusercontent.com. Only if you
+   press "Update now" does it download the new version from github.com. It asks first, every time; updates are never silent.
+3. The built-in browser is Microsoft Edge WebView2 (Chromium). Like Edge, it checks the sites you visit against Microsoft
+   SmartScreen and updates itself through Windows. The app adds: https-only, refusal of bad certificates, blocking of ads and
+   trackers, and denial of every permission request (camera, microphone, location, notifications, clipboard), downloads,
+   pop-ups and file:// pages.
+
+WHAT IT WRITES ON YOUR PC
+-------------------------
+- TacOverlay.ini next to the program (your settings).
+- %LocalAppData%\TacOverlay\ : browser data (history, cookies, cache - clearable from Settings), your notes and mission log,
+  your custom wrap picture, the checklist, and a small log file (logs\tacoverlay.log) used only to diagnose problems.
+- Only if you tick "Start with Windows": one entry in HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run.
+- While updating: a temporary folder %TEMP%\TacOverlayUpdate.
+Nothing is written anywhere else.
+
+HOW THE UPDATER STAYS SAFE
+--------------------------
+- It only accepts downloads from github.com addresses.
+- It checks the downloaded program is newer than the one you have, and (when the release lists one) that its SHA-256
+  fingerprint matches. If anything is wrong it changes nothing.
+- It only replaces the program's own files in its own folder. Your settings file is never touched.
+
+WHY WINDOWS MAY SHOW A WARNING
+------------------------------
+The program is not digitally signed (signing certificates cost money) and new programs have no reputation yet. Windows
+SmartScreen ("Windows protected your PC") and some antivirus programs warn about ANY unsigned, rarely-downloaded program.
+That is a statement about reputation, not about what the program does.
+How to check it for yourself:
+ 1. Compare the SHA-256 of the file you downloaded with the one in the release notes (PowerShell:  Get-FileHash <file>).
+ 2. Check the release file on virustotal.com (the release notes link the scan).
+ 3. Read the source and build it yourself.
+If you download the zip from GitHub and Windows warns: right-click the zip > Properties > Unblock, then extract.
+For the SmartScreen screen: More info > Run anyway. Do NOT turn off your antivirus for this or any program.
+
+FOUND A PROBLEM?  Open "Open log folder" in Settings and send tacoverlay.log. Security reports are welcome.

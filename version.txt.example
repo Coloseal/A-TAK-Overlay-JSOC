@@ -1,0 +1,10 @@
+latest=1.2.0
+minimum=1.0.0
+url=https://github.com/OWNER/REPO/releases/latest
+notes=Short description of what's new (optional)
+# Optional lines for the one-click updater:
+# zip=https://github.com/OWNER/REPO/releases/download/v1.2.0/TacMapOverlay-v1.2.0.zip
+# sha256=fingerprint-of-that-zip (extra safety check)
+# If "zip=" is left out, it is worked out for you from "url=" and "latest=":
+#   https://github.com/OWNER/REPO/releases/download/v<latest>/TacMapOverlay-v<latest>.zip
+# so just name the file you attach to each release  TacMapOverlay-v<version>.zip
