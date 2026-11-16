@@ -1,4 +1,5 @@
-latest=1.1.0
+latest=1.1.1
 minimum=1.0.0
 url=https://github.com/Coloseal/A-TAK-Overlay-JSOC/releases/latest
-notes=New pilot display, secure browser, timers and tools, live corner view, one-click updates
+notes=Safer under the hood (no key-state polling), app metadata, open-source license and privacy note, hold-to-peek rework, map sharpness fix
+sha256=bd1910be74e31438f0b6fa73a6700841ddb2438bd25c250c2233257c6805d9b2
