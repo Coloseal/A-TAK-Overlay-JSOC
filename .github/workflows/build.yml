@@ -1,0 +1,45 @@
+# Builds the program on GitHub's own servers from the public source, so anyone can see exactly what produced the release file.
+# (Untested until it first runs on GitHub - check the Actions tab after you push it.)
+#
+# Later, for FREE code signing (SignPath Foundation, for open-source projects): after they approve the project, add their
+# "submit-signing-request" step here. See the comments at the bottom.
+name: build
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (build.ps1 downloads the official, Microsoft-signed WebView2 DLLs from NuGet)
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File build.ps1
+
+      - name: Make the release zip and checksums
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File tools\release.ps1
+
+      - name: Upload the zip as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TacMapOverlay
+          path: |
+            TacMapOverlay-v*.zip
+            release-notes.md
+            version.txt.new
+
+      # --- Free signing with SignPath Foundation (after approval) ---
+      # - uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: '<your SignPath organization id>'
+      #     project-slug: 'tac-map-overlay'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'initial'
+      #     github-artifact-id: '<id of the uploaded artifact>'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'signed'
