@@ -19,8 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-Third-party component shipped with this app (not covered by the license above):
-Microsoft Edge WebView2 (Microsoft.Web.WebView2.Core.dll, WebView2Loader.dll), digitally signed by
-Microsoft Corporation, used under the Microsoft WebView2 SDK license. It drives the built-in browser.

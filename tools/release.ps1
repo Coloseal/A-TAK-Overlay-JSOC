@@ -19,7 +19,7 @@ Remove-Item $zip -ErrorAction SilentlyContinue
 $stage = Join-Path $env:TEMP 'tac_release_stage'
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory $stage | Out-Null
-foreach ($f in 'TacOverlay.exe', 'Microsoft.Web.WebView2.Core.dll', 'WebView2Loader.dll', 'LICENSE.txt', 'PRIVACY-AND-SECURITY.txt') {
+foreach ($f in 'TacOverlay.exe', 'Microsoft.Web.WebView2.Core.dll', 'WebView2Loader.dll', 'LICENSE.txt', 'THIRD-PARTY-NOTICES.txt', 'PRIVACY-AND-SECURITY.txt') {
     if (Test-Path "$root\dist\$f") { Copy-Item "$root\dist\$f" $stage }
 }
 [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip)

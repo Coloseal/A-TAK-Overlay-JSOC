@@ -49,5 +49,5 @@ foreach ($a in 'device.png', 'mfd.png', 'emblem.png', 'icon.ico') {
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 
 Copy-Item "$lib\*.dll" $dist -Force
-foreach ($f in 'LICENSE.txt', 'PRIVACY-AND-SECURITY.txt') { if (Test-Path (Join-Path $root $f)) { Copy-Item (Join-Path $root $f) $dist -Force } }
+foreach ($f in 'LICENSE.txt', 'THIRD-PARTY-NOTICES.txt', 'PRIVACY-AND-SECURITY.txt') { if (Test-Path (Join-Path $root $f)) { Copy-Item (Join-Path $root $f) $dist -Force } }
 Write-Host "Built: $dist\TacOverlay.exe"

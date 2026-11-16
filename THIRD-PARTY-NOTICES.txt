@@ -1,0 +1,14 @@
+THIRD-PARTY NOTICES
+===================
+
+The Tac Map Overlay source code is licensed under the MIT License (see LICENSE.txt). The items below are not covered by it.
+
+Microsoft Edge WebView2
+  Files: Microsoft.Web.WebView2.Core.dll, WebView2Loader.dll
+  Publisher: Microsoft Corporation (both files carry Microsoft's digital signature). Version 1.0.2365.46.
+  Used under the Microsoft WebView2 SDK license. They drive the built-in browser. Official source:
+  https://www.nuget.org/packages/Microsoft.Web.WebView2
+
+Pictures
+  The photos used in the official releases (tablet, display, badge) are other people's pictures and are NOT part of this
+  open-source repository (see assets/README.txt). They are not covered by the MIT License.
