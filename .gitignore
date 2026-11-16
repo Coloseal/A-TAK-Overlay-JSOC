@@ -1,0 +1,8 @@
+dist/
+lib/
+*.zip
+release-notes.md
+version.txt.new
+TacOverlay.ini
+TacOverlay.ini.bak
+*.old
