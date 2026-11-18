@@ -81,6 +81,9 @@ namespace TacOverlay
         [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr dc, ref BITMAPINFOHEADER bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
         [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint ms);
         [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint ms);
+        [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
+        public const uint GW_HWNDPREV = 3;
+        [DllImport("psapi.dll")] public static extern bool EmptyWorkingSet(IntPtr process);
 
         public static void ForceForeground(IntPtr h)
         {
@@ -487,9 +490,56 @@ namespace TacOverlay
                         if (FindArt(w, h) == null) using (Bitmap warm = RenderTablet(w, 1.0, false, true, false)) { }
                     }
                     catch { }
+                    ScheduleTrim();   // building the art leaves a lot of scratch memory behind: give it back
                 };
             }
             warmTimer.Stop(); warmTimer.Start();
+        }
+
+        // ---------- memory ----------
+        // Building / scaling the art uses big temporary arrays. Once everything is idle, collect them and (while minimized)
+        // hand the unused pages back to Windows. The page engine is also told to use less memory while it is hidden.
+        System.Windows.Forms.Timer trimTimer;
+
+        void ScheduleTrim()
+        {
+            if (trimTimer == null)
+            {
+                trimTimer = new System.Windows.Forms.Timer();
+                trimTimer.Interval = 2500;
+                trimTimer.Tick += delegate
+                {
+                    trimTimer.Stop();
+                    if (animating || inSizeMove || inSettings) { trimTimer.Start(); return; }
+                    TrimMemory(!open && !LiveShown);
+                };
+            }
+            trimTimer.Stop(); trimTimer.Start();
+        }
+
+        void TrimMemory(bool giveBackPages)
+        {
+            try
+            {
+                System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+                if (giveBackPages) using (Process me = Process.GetCurrentProcess()) Native.EmptyWorkingSet(me.Handle);
+            }
+            catch { }
+            SetWebMemory(!webShown && !LiveShown);
+        }
+
+        // low = the page is hidden (minimized without the live view): the browser engine may trim its caches
+        void SetWebMemory(bool low)
+        {
+            try
+            {
+                if (ctl != null && ctl.CoreWebView2 != null)
+                    ctl.CoreWebView2.MemoryUsageTargetLevel = low ? CoreWebView2MemoryUsageTargetLevel.Low : CoreWebView2MemoryUsageTargetLevel.Normal;
+            }
+            catch { }
         }
         bool showOnFirstRun;
         bool inPush;
@@ -501,6 +551,7 @@ namespace TacOverlay
         readonly uint myPid = (uint)Process.GetCurrentProcess().Id;
         uint browserPid;                // the page engine's process: its pop-ups (menus, drop-downs) count as the tablet
         int awayTicks;                 // consecutive timer ticks with another program in front while expanded
+        int clipTick;
         int grabUntil;                // Environment.TickCount until which we keep re-taking focus after expanding
         bool fsFore;                    // a fullscreen app/game is in front: the minimized tablet may sit at the very bottom edge
         System.Windows.Forms.Timer dockTimer;
@@ -1005,10 +1056,13 @@ namespace TacOverlay
             bezelShown = true;
         }
 
+        // Put the frame back on top - but only if something actually got above it. Re-asserting "topmost" on every tick makes
+        // Windows re-compose the screen each time, which is what a game in front would feel.
         void RaiseBezel()
         {
-            if (bezelShown)
-                Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            if (!bezelShown) return;
+            if (Native.GetWindow(Handle, Native.GW_HWNDPREV) == IntPtr.Zero) return;   // nothing above us already
+            Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
         }
 
         // ---------- the page window ----------
@@ -1030,6 +1084,7 @@ namespace TacOverlay
         {
             if (webHost == null || ctl == null) return;
             PositionWeb();
+            SetWebMemory(false);
             Native.ShowWindow(webHost.Handle, Native.SW_SHOWNOACTIVATE);
             Native.SetWindowPos(webHost.Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
             ctl.IsVisible = true;
@@ -1060,7 +1115,7 @@ namespace TacOverlay
             // While expanded, check focus a few times a second: keep the mouse locked while the tablet has focus,
             // and never leave it trapped if you alt-tab away or a game pop-up takes focus.
             clipTimer = new System.Windows.Forms.Timer();
-            clipTimer.Interval = 10;
+            clipTimer.Interval = 15;   // (Windows ticks timers every ~15.6 ms anyway; no need to raise the whole system's timer rate for this)
             clipTimer.Tick += delegate
             {
                 if (!grabbed || inSettings || inSizeMove || animating) return;
@@ -1070,7 +1125,7 @@ namespace TacOverlay
                 if (pid == myPid || (browserPid != 0 && pid == browserPid))
                 {
                     awayTicks = 0;
-                    UpdateClip();
+                    if ((++clipTick & 3) == 0) UpdateClip();   // the lock itself stays in force; refresh it a few times a second
                     if (cfg.LockMouse)
                     {
                         // second layer: if anything cleared the clip, snap the cursor straight back into the tablet
@@ -1268,7 +1323,7 @@ namespace TacOverlay
             if (!grabbed) return;
             grabbed = false;
             awayTicks = 0;
-            if (clipTimer != null && clipTimer.Enabled) { clipTimer.Stop(); Native.timeEndPeriod(1); }
+            if (clipTimer != null && clipTimer.Enabled) clipTimer.Stop();
             Native.ClipCursor(IntPtr.Zero);
             // Give focus back to the game only if the tablet itself still has it. If you already alt-tabbed somewhere
             // else, leave focus exactly where you put it.
@@ -1373,6 +1428,7 @@ namespace TacOverlay
         {
             animating = false;
             animV = 0.0;
+            ScheduleTrim();   // minimized and idle: tidy up memory a moment from now
             if (cfg.LiveMini && ctl != null)
             {
                 ShowLive();      // minimized: no frame, just the live screen in the corner
@@ -1403,7 +1459,7 @@ namespace TacOverlay
             Native.ForceForeground(webHost.Handle);
             if (ctl != null) ctl.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
             UpdateClip();
-            if (clipTimer != null && !clipTimer.Enabled) { Native.timeBeginPeriod(1); clipTimer.Start(); }
+            if (clipTimer != null && !clipTimer.Enabled) clipTimer.Start();
         }
 
         // The frame is always clickable (drag, gear, click-to-open). The page window can take focus only while expanded.
@@ -1845,7 +1901,7 @@ namespace TacOverlay
         void Quit()
         {
             SaveState();
-            if (clipTimer != null && clipTimer.Enabled) { clipTimer.Stop(); Native.timeEndPeriod(1); }
+            if (clipTimer != null && clipTimer.Enabled) clipTimer.Stop();
             Native.ClipCursor(IntPtr.Zero);
             if (animating) StopAnim();
             if (animTimer != null) animTimer.Stop();

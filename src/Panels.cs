@@ -812,6 +812,7 @@ namespace TacOverlay
             LiveShown = true;
             ApplyMode();                       // click-through + the minimized transparency
             PositionLive(false);
+            SetWebMemory(false);
             Native.ShowWindow(webHost.Handle, Native.SW_SHOWNOACTIVATE);
             ctl.IsVisible = true;
             // the frame window stays, but only as a transparent, click-through layer for the alarm banner / move outline
@@ -946,8 +947,11 @@ namespace TacOverlay
         {
             if (webHost != null && LiveShown)
             {
+                // already in order (alarm layer on top, the page right under it)? then leave the window stack alone
+                if (bezelShown && Native.GetWindow(Handle, Native.GW_HWNDPREV) == IntPtr.Zero &&
+                    Native.GetWindow(webHost.Handle, Native.GW_HWNDPREV) == Handle) return;
                 Native.SetWindowPos(webHost.Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
-                RaiseBezel();   // the transparent alarm layer goes above the page
+                if (bezelShown) Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
             }
         }
 
