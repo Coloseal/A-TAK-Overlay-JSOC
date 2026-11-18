@@ -83,7 +83,6 @@ namespace TacOverlay
         [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint ms);
         [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
         public const uint GW_HWNDPREV = 3;
-        [DllImport("psapi.dll")] public static extern bool EmptyWorkingSet(IntPtr process);
 
         public static void ForceForeground(IntPtr h)
         {
@@ -103,7 +102,9 @@ namespace TacOverlay
 
     class Config
     {
-        public string Url = "https://jsoctacmap-544084018891.us-east1.run.app/";
+        public const string DefaultUrl = "https://jsoc-tacmap.onrender.com/";
+        const string OldDefaultUrl = "https://jsoctacmap-544084018891.us-east1.run.app";   // the previous home page (moved to the new address)
+        public string Url = DefaultUrl;
         public string ToggleKey = "Ctrl+F1";  // open / close the tablet
         public string SizeKey = "Ctrl+F8";    // cycle tablet size
         public string OpacityKey = "Ctrl+F9"; // cycle transparency
@@ -248,6 +249,8 @@ namespace TacOverlay
                         break;
                 }
             }
+            // the tac map moved: anyone still on the old default address is taken to the new one (a custom address is left alone)
+            if (c.Url.Trim().TrimEnd('/').Equals(OldDefaultUrl, StringComparison.OrdinalIgnoreCase)) c.Url = DefaultUrl;
             return c;
         }
 
@@ -497,8 +500,8 @@ namespace TacOverlay
         }
 
         // ---------- memory ----------
-        // Building / scaling the art uses big temporary arrays. Once everything is idle, collect them and (while minimized)
-        // hand the unused pages back to Windows. The page engine is also told to use less memory while it is hidden.
+        // Building / scaling the art uses big temporary arrays. Once everything is idle, collect them. The page engine is also
+        // told to use less memory while it is hidden. (No low-level working-set calls: those look like "memory cleaner" tools.)
         System.Windows.Forms.Timer trimTimer;
 
         void ScheduleTrim()
@@ -525,7 +528,6 @@ namespace TacOverlay
                 GC.Collect(2, GCCollectionMode.Forced, true, true);
                 GC.WaitForPendingFinalizers();
                 GC.Collect(2, GCCollectionMode.Forced, true, true);
-                if (giveBackPages) using (Process me = Process.GetCurrentProcess()) Native.EmptyWorkingSet(me.Handle);
             }
             catch { }
             SetWebMemory(!webShown && !LiveShown);
@@ -2368,6 +2370,13 @@ namespace TacOverlay
                         sb.Save(args[1]);
                     }
                 }
+                return;
+            }
+
+            // developer helper: which home page would this settings file open?
+            if (args.Length >= 3 && args[0] == "--dump-url")
+            {
+                File.WriteAllText(args[2], Config.Load(args[1]).Url);
                 return;
             }
 

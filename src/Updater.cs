@@ -31,7 +31,7 @@ namespace TacOverlay
     static class Updater
     {
         // Bump this every time you release a new exe (and rebuild).
-        public const string Version = "1.1.2";
+        public const string Version = "1.1.3";
 
         // Address of the update info file. Set this once the file is hosted (e.g. a raw GitHub URL).
         // Empty = update checking is switched off.
