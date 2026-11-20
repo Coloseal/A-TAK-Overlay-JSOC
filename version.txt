@@ -1,5 +1,5 @@
-latest=1.1.3
+latest=1.1.4
 minimum=1.0.0
 url=https://github.com/Coloseal/A-TAK-Overlay-JSOC/releases/latest
-notes=The tac map now opens the new website (jsoc-tacmap.onrender.com). Existing installs are moved over automatically
-sha256=c952c7bc0100d0a6ef126139ac3fd844f56e94a2248d7ce000775a94a106995a
+notes=Minimized live view: a TOC video wall that is open now keeps playing other people's streams instead of going black
+sha256=270b855c03e312889407e8892f62cb4e0e26377591bf454c65d58656072cac05
