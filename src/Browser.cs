@@ -461,11 +461,30 @@ setInterval(function(){
             }
             dpr = Math.Max(0.5, Math.Min(3.0, dpr));
             string dprJs = "try{Object.defineProperty(window,'devicePixelRatio',{get:function(){return " + dpr.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ";},configurable:true});}catch(e){}";
+            // What the page is told. The real state ("host") is stored in window.__tacHost; __tacApply works out what the page
+            // should hear. In the minimized live view the map site goes into its "mini" mode, which keeps ONLY ONE pinned
+            // feed connected and hides everything else - so a TOC video wall that is open in the live view would lose every
+            // stream and show black. While the TOC video wall is open the page is therefore told "full" instead, so all its
+            // streams stay connected and playing; when the wall is closed it gets "mini" again. (This is done here, in the
+            // overlay, so the website itself does not have to change.)
             return "(function(){if(location.hostname!==" + JsString(host) + ")return;" + dprJs +
-                "window.TAC_OVERLAY={tablet:true,layout:" + JsString(tag) + ",aspect:" + aspect + ",mode:" + JsString(mode) + ",viewport:{w:" + vw + ",h:" + vh + "}};" +
-                "function m(){document.documentElement.setAttribute('data-overlay'," + JsString(tag) + ");document.documentElement.setAttribute('data-overlay-mode'," + JsString(mode) + ");}" +
-                "if(document.documentElement)m();document.addEventListener('DOMContentLoaded',m);" +
-                "try{window.dispatchEvent(new CustomEvent('tacoverlay-mode',{detail:window.TAC_OVERLAY}));}catch(e){}})();";
+                "window.__tacHost={layout:" + JsString(tag) + ",aspect:" + aspect + ",mode:" + JsString(mode) + ",viewport:{w:" + vw + ",h:" + vh + "}};" +
+                "if(!window.__tacApply){" +
+                  "window.__tacApply=function(force){" +
+                    "var h=window.__tacHost,m=h.mode;" +
+                    "if(m==='mini'){try{if(document.querySelector('[role=\"dialog\"][aria-label=\"TOC Video Wall\"]'))m='full';}catch(e){}}" +
+                    "var key=m+'|'+h.layout+'|'+h.aspect;" +
+                    "if(!force&&key===window.__tacKey&&document.documentElement&&document.documentElement.getAttribute('data-overlay-mode')===m)return;" +
+                    "window.__tacKey=key;" +
+                    "var o={tablet:true,layout:h.layout,aspect:h.aspect,mode:m,viewport:h.viewport};" +
+                    "window.TAC_OVERLAY=o;" +
+                    "var de=document.documentElement;if(de){de.setAttribute('data-overlay',h.layout);de.setAttribute('data-overlay-mode',m);}" +
+                    "try{window.dispatchEvent(new CustomEvent('tacoverlay-mode',{detail:o}));}catch(e){}" +
+                  "};" +
+                  "document.addEventListener('DOMContentLoaded',function(){window.__tacApply(true);});" +
+                  "window.setInterval(function(){window.__tacApply(false);},400);" +
+                "}" +
+                "window.__tacApply(true);})();";
         }
 
         // The tablet went to / came back from the frameless live corner view: tell the page (your map site only).
@@ -659,6 +678,35 @@ setInterval(function(){
                 L("minimized again (live): page zoom factor = " + ctl.ZoomFactor.ToString("0.00") + "   devicePixelRatio seen by the map site = " + await Eval("window.devicePixelRatio"));
                 ctl.CoreWebView2.Navigate("https://example.com/"); await WaitLoaded(10000);
                 L("other site (example.com) in the live view: devicePixelRatio = " + await Eval("window.devicePixelRatio") + "   (real value, not changed)");
+                L("DONE");
+            }
+            catch (Exception ex) { L("EXCEPTION " + ex); }
+            Quit();
+        }
+
+        // developer helper: with the TOC video wall open, does the page stay in "full" mode in the minimized live view
+        // (so its streams stay connected), and go back to "mini" when the wall is closed? (a stand-in page pretends to be the map site)
+        public async void RunTocModeTest(string dir)
+        {
+            StringBuilder log = new StringBuilder();
+            Action<string> L = delegate (string s) { log.AppendLine(s); try { File.WriteAllText(Path.Combine(dir, "tocmode.txt"), log.ToString()); } catch { } };
+            string probe = "JSON.stringify({mode:(window.TAC_OVERLAY||{}).mode,attr:document.documentElement.getAttribute('data-overlay-mode'),events:(window.__events||[]).join('>')})";
+            try
+            {
+                int waited = 0;
+                while ((ctl == null || !LiveShown) && waited < 25000) { await Delay(150); waited += 150; }
+                await WaitLoaded(8000);
+                L("1. minimized, live view on, TOC wall closed -> " + await Eval(probe) + "   (expect mini)");
+                await Eval("(function(){var d=document.createElement('div');d.setAttribute('role','dialog');d.setAttribute('aria-label','TOC Video Wall');d.id='fakewall';document.body.appendChild(d);})()");
+                await Delay(1200);
+                L("2. TOC wall opened while minimized -> " + await Eval(probe) + "   (expect full)");
+                OpenTablet(); await Delay(1500);
+                L("3. tablet expanded, wall open -> " + await Eval(probe) + "   (expect full)");
+                CloseTablet(); await Delay(1500);
+                L("4. minimized again, wall still open -> " + await Eval(probe) + "   LiveShown=" + LiveShown + "   (expect full)");
+                await Eval("document.getElementById('fakewall').remove()");
+                await Delay(1200);
+                L("5. TOC wall closed, still minimized -> " + await Eval(probe) + "   (expect mini)");
                 L("DONE");
             }
             catch (Exception ex) { L("EXCEPTION " + ex); }

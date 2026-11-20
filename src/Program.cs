@@ -2269,6 +2269,27 @@ namespace TacOverlay
                 return;
             }
 
+            // developer helper: TOC video wall open while minimized in the live view (needs a stand-in page address)
+            if (args.Length >= 3 && args[0] == "--tocmodetest")
+            {
+                Directory.CreateDirectory(args[1]);
+                Native.SetProcessDPIAware();
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Program.TestMode = true;
+                Config tmc = new Config();
+                tmc.Url = args[2]; tmc.HttpsOnly = false;
+                tmc.LiveMini = true; tmc.LockMouse = false; tmc.Animate = false; tmc.AlertBeep = false;
+                tmc.ToggleKey = "Ctrl+Alt+Shift+F11"; tmc.SizeKey = "Ctrl+Alt+Shift+F10"; tmc.OpacityKey = "Ctrl+Alt+Shift+F9";
+                tmc.PeekKey = tmc.NotesKey = tmc.LiveKey = tmc.DragKey = tmc.Timer1Key = tmc.Timer2Key = tmc.StopwatchKey = "";
+                if (Screen.AllScreens.Length > 1) tmc.Monitor = Screen.AllScreens[Screen.AllScreens.Length - 1].DeviceName;
+                OverlayForm tmf = new OverlayForm(tmc, "");
+                tmf.Init(false);
+                tmf.RunTocModeTest(args[1]);
+                Application.Run();
+                return;
+            }
+
             // developer helper: draw the button-assignment window and the whole settings page (tall) to PNGs
             if (args.Length >= 3 && args[0] == "--dump-keys")
             {
