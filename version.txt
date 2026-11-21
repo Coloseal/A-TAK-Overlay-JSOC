@@ -1,5 +1,5 @@
-latest=1.1.4
+latest=1.1.5
 minimum=1.0.0
 url=https://github.com/Coloseal/A-TAK-Overlay-JSOC/releases/latest
-notes=Minimized live view: a TOC video wall that is open now keeps playing other people's streams instead of going black
-sha256=270b855c03e312889407e8892f62cb4e0e26377591bf454c65d58656072cac05
+notes=New game button: Run Away From Nive - an offline endless runner in a panel on the right third of the tablet (arrow keys or WASD), with tunnel walls, ramps onto trains, a chaser and sound effects.
+sha256=29b5ff20c5d24399060833460449f80437d24e48e41d380abe23d868d56a071b
