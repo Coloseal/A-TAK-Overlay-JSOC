@@ -38,10 +38,19 @@ Nothing is written anywhere else.
 
 HOW THE UPDATER STAYS SAFE
 --------------------------
-- It only accepts downloads from github.com addresses.
-- It checks the downloaded program is newer than the one you have, and (when the release lists one) that its SHA-256
-  fingerprint matches. If anything is wrong it changes nothing.
+- It only downloads from this project's OWN GitHub release page (no other site, and no other GitHub project), over TLS 1.2.
+- A one-click update is only installed when its SHA-256 fingerprint matches and the program inside is newer than yours.
+  If anything is wrong it changes nothing.
 - It only replaces the program's own files in its own folder. Your settings file is never touched.
+- Importing a settings file can never change where updates come from, and asks before changing the map, search or
+  bookmark addresses or switching a protection off.
+
+THE BUILT-IN GAME
+-----------------
+The game panel runs in its own locked page with no internet access at all: it cannot open web addresses, download
+anything or ask for permissions. Its sound files are read from a "sounds" folder next to the program or in
+%LocalAppData%\TacOverlay\sounds and played inside that locked page. Your best score and the volume are kept in
+TacOverlay.ini.
 
 WHY WINDOWS MAY SHOW A WARNING
 ------------------------------
