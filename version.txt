@@ -1,5 +1,5 @@
-latest=1.1.5
+latest=1.2.0
 minimum=1.0.0
 url=https://github.com/Coloseal/A-TAK-Overlay-JSOC/releases/latest
-notes=New game button: Run Away From Nive - an offline endless runner in a panel on the right third of the tablet (arrow keys or WASD), with tunnel walls, ramps onto trains, a chaser and sound effects.
-sha256=29b5ff20c5d24399060833460449f80437d24e48e41d380abe23d868d56a071b
+notes=Game: your own background music, volume and mute, power-ups, saved best score. Faster start, dark menus, button hints, and safer updates and settings import.
+sha256=6d7334ab64ab5a632d2759710d2a69090a70d61124ab8bcd369cd591cf2ebf9a
