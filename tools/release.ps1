@@ -5,6 +5,10 @@
 # Order when publishing:  1) publish the GitHub release with the zip   2) THEN edit version.txt on GitHub.
 param([string]$Notes = 'What changed in this version (one line)', [string]$Minimum = '1.0.0')
 $ErrorActionPreference = 'Stop'
+# version.txt is read by every installed copy, so refuse anything that would break it. (Double quotes in -Notes can split
+# the command line and push words into -Minimum.)
+if ($Minimum -notmatch '^\d+\.\d+\.\d+$') { throw "-Minimum must look like 1.0.0 but is '$Minimum'. If your notes contain double quotes, remove them." }
+$Notes = ($Notes -replace '[\r\n]+', ' ').Replace('"', "'")
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -22,6 +26,8 @@ New-Item -ItemType Directory $stage | Out-Null
 foreach ($f in 'TacOverlay.exe', 'Microsoft.Web.WebView2.Core.dll', 'WebView2Loader.dll', 'LICENSE.txt', 'THIRD-PARTY-NOTICES.txt', 'PRIVACY-AND-SECURITY.txt') {
     if (Test-Path "$root\dist\$f") { Copy-Item "$root\dist\$f" $stage }
 }
+# optional sound effects for the game panel (assets\sounds\*.mp3 -> sounds\ next to the program)
+if (Test-Path "$root\assets\sounds") { Copy-Item "$root\assets\sounds" "$stage\sounds" -Recurse }
 [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip)
 Remove-Item $stage -Recurse -Force
 
