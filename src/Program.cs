@@ -104,8 +104,7 @@ namespace TacOverlay
     {
         public const string DefaultUrl = "https://jsoc-tacmap.onrender.com/";
         const string OldDefaultUrl = "https://jsoctacmap-544084018891.us-east1.run.app";   // the previous home page (moved to the new address)
-        public string Url = DefaultUrl;
-        public string ToggleKey = "Ctrl+F1";  // open / close the tablet
+        public string Url = DefaultUrl;        public string ToggleKey = "Ctrl+F1";  // open / close the tablet
         public string SizeKey = "Ctrl+F8";    // cycle tablet size
         public string OpacityKey = "Ctrl+F9"; // cycle transparency
         public string PeekKey = "Ctrl+Alt+P";      // HOLD: the tablet is expanded only while you hold the key
@@ -138,6 +137,9 @@ namespace TacOverlay
         public bool AdBlock = true;           // block ads and trackers in the built-in browser
         public bool HttpsOnly = true;         // upgrade http:// pages to https:// (plain http is only allowed on your own network)
         public string SearchUrl = "https://duckduckgo.com/?q=";   // used when you type words instead of a web address
+        public int GameVolume = 60;           // the game panel: volume 0-100, mute, and the best score
+        public bool GameMuted = false;
+        public int GameBest = 0;
         public bool ShowLabels = true;        // pilot display: draw the soft-key labels next to the buttons
         public bool LiveMini = false;         // when minimized, show the live screen in the corner with no frame (instead of the little tablet)
         public double MapPixelRatio = 0;      // sharpness the map site is told it has (0 = automatic, 1-2 is normal; higher = sharper but slower)
@@ -162,9 +164,12 @@ namespace TacOverlay
             {
                 "MAP,WEB,NOTE,TIME,LIVE,PAGE,TM1,TM2,TM3,TM4,STW,CLR,BACK,FWD,RFSH,ADS,XPAR,LOCK,MSN,MRST,UTC,CPY,SHOT,ZRST".Split(','),
                 "MAP,LOG,CALC,N9L,CHK,PAGE,BM1,BM2,BM3,BM4,BM5,BM6,ZM+,ZM-,ZRST,SZ+,SZ-,DRAG,LOGV,PR1,PR2,PR3,SHOT,CPY".Split(','),
-                "MAP,WEB,NOTE,TIME,LIVE,PAGE,SET,UPD,CLRD,NONE,NONE,NONE,BACK,FWD,RFSH,ADS,LOCK,XPAR,PR1,PR2,PR3,UTC,SHOT,CPY".Split(',')
+                "MAP,WEB,NOTE,TIME,LIVE,PAGE,SET,UPD,CLRD,GAME,NONE,NONE,BACK,FWD,RFSH,ADS,LOCK,XPAR,PR1,PR2,PR3,UTC,SHOT,CPY".Split(',')
             };
         }
+
+        // page 3 as it was before the game button existed (saved files that still have it get the new button)
+        const string OldPage3 = "MAP,WEB,NOTE,TIME,LIVE,PAGE,SET,UPD,CLRD,NONE,NONE,NONE,BACK,FWD,RFSH,ADS,LOCK,XPAR,PR1,PR2,PR3,UTC,SHOT,CPY";
 
         public string ThemeFor(string layoutId) { return layoutId == "pilot" ? PilotTheme : Theme; }
         public void SetThemeFor(string layoutId, string t) { if (layoutId == "pilot") PilotTheme = t; else Theme = t; }
@@ -219,7 +224,9 @@ namespace TacOverlay
                     case "adblock": c.AdBlock = v.ToLowerInvariant() != "false"; break;
                     case "httpsonly": c.HttpsOnly = v.ToLowerInvariant() != "false"; break;
                     case "searchurl": if (v.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) c.SearchUrl = v; break;
-                    case "showlabels": c.ShowLabels = v.ToLowerInvariant() != "false"; break;
+                    case "gamevolume": if (int.TryParse(v, out n)) c.GameVolume = Math.Max(0, Math.Min(100, n)); break;
+                    case "gamemuted": c.GameMuted = v.ToLowerInvariant() == "true"; break;
+                    case "gamebest": if (int.TryParse(v, out n)) c.GameBest = Math.Max(0, Math.Min(9999999, n)); break;                    case "showlabels": c.ShowLabels = v.ToLowerInvariant() != "false"; break;
                     case "showpanel": c.ShowPanel = v.ToLowerInvariant() != "false"; break;
                     case "labelinset": c.LabelInset = v.ToLowerInvariant() == "true"; break;
                     case "livemini": c.LiveMini = v.ToLowerInvariant() == "true"; break;
@@ -242,7 +249,12 @@ namespace TacOverlay
                         if (k.Length == 5 && k.StartsWith("page") && k[4] >= '1' && k[4] <= '3')
                         {
                             string[] ids = v.Split(',');
-                            if (ids.Length == 24) { for (int pi = 0; pi < 24; pi++) ids[pi] = ids[pi].Trim().ToUpperInvariant(); c.Pages[k[4] - '1'] = ids; }
+                            if (ids.Length == 24)
+                            {
+                                for (int pi = 0; pi < 24; pi++) ids[pi] = ids[pi].Trim().ToUpperInvariant();
+                                if (k[4] == '3' && string.Join(",", ids) == OldPage3) ids = DefaultPages()[2];
+                                c.Pages[k[4] - '1'] = ids;
+                            }
                         }
                         else if (k.Length == 9 && k.StartsWith("bookmark") && k[8] >= '1' && k[8] <= '6') c.Bookmarks[k[8] - '1'] = v;
                         else if (k.Length == 7 && k.StartsWith("preset") && k[6] >= '1' && k[6] <= '3') c.Presets[k[6] - '1'] = v;
@@ -297,7 +309,10 @@ namespace TacOverlay
             sb.AppendLine("AdBlock=" + (AdBlock ? "true" : "false"));
             sb.AppendLine("HttpsOnly=" + (HttpsOnly ? "true" : "false"));
             sb.AppendLine("SearchUrl=" + SearchUrl);
-            sb.AppendLine("; Soft-key labels (pilot display), clock/timer panel, timer beep, UTC clock, and the 4 timer presets (seconds)");
+            sb.AppendLine("; The game panel: volume (0-100), mute, best score");
+            sb.AppendLine("GameVolume=" + GameVolume);
+            sb.AppendLine("GameMuted=" + (GameMuted ? "true" : "false"));
+            sb.AppendLine("GameBest=" + GameBest);            sb.AppendLine("; Soft-key labels (pilot display), clock/timer panel, timer beep, UTC clock, and the 4 timer presets (seconds)");
             sb.AppendLine("ShowLabels=" + (ShowLabels ? "true" : "false"));
             sb.AppendLine("ShowPanel=" + (ShowPanel ? "true" : "false"));
             sb.AppendLine("LabelInset=" + (LabelInset ? "true" : "false"));
@@ -318,6 +333,55 @@ namespace TacOverlay
             for (int bm = 0; bm < 6; bm++) if (Bookmarks[bm].Length > 0) sb.AppendLine("Bookmark" + (bm + 1) + "=" + Bookmarks[bm]);
             for (int pr = 0; pr < 3; pr++) if (Presets[pr].Length > 0) sb.AppendLine("Preset" + (pr + 1) + "=" + Presets[pr]);
             File.WriteAllText(path, sb.ToString());
+        }
+    }
+
+    // The tray menu and the timer menu in the app's own dark colours.
+    static class DarkMenu
+    {
+        static readonly Color Bg = Color.FromArgb(28, 31, 25), Fg = Color.FromArgb(214, 222, 198), Hot = Color.FromArgb(58, 68, 44),
+            Edge = Color.FromArgb(92, 106, 70), Green = Color.FromArgb(155, 212, 90), Dim = Color.FromArgb(112, 118, 102);
+
+        public static void Apply(ContextMenuStrip m)
+        {
+            m.Renderer = new Renderer();
+            m.BackColor = Bg;
+            m.ForeColor = Fg;
+        }
+
+        class Renderer : ToolStripProfessionalRenderer
+        {
+            public Renderer() : base(new Colors()) { RoundedEdges = false; }
+            protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+            {
+                if (!e.Item.Enabled) e.TextColor = Dim;
+                base.OnRenderItemText(e);
+            }
+            protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e) { e.ArrowColor = Fg; base.OnRenderArrow(e); }
+            // the standard tick is black: draw a green one that shows on the dark menu
+            protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+            {
+                Rectangle r = e.ImageRectangle;
+                if (r.Width < 4) return;
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Pen p = new Pen(Green, Math.Max(2f, r.Width / 8f)))
+                    e.Graphics.DrawLines(p, new Point[] { new Point(r.X + r.Width / 6, r.Y + r.Height / 2), new Point(r.X + r.Width * 2 / 5, r.Y + r.Height * 3 / 4), new Point(r.X + r.Width * 5 / 6, r.Y + r.Height / 4) });
+            }
+        }
+
+        class Colors : ProfessionalColorTable
+        {
+            public override Color ToolStripDropDownBackground { get { return Bg; } }
+            public override Color ImageMarginGradientBegin { get { return Bg; } }
+            public override Color ImageMarginGradientMiddle { get { return Bg; } }
+            public override Color ImageMarginGradientEnd { get { return Bg; } }
+            public override Color MenuBorder { get { return Edge; } }
+            public override Color MenuItemBorder { get { return Edge; } }
+            public override Color MenuItemSelected { get { return Hot; } }
+            public override Color MenuItemSelectedGradientBegin { get { return Hot; } }
+            public override Color MenuItemSelectedGradientEnd { get { return Hot; } }
+            public override Color SeparatorDark { get { return Edge; } }
+            public override Color SeparatorLight { get { return Bg; } }
         }
     }
 
@@ -836,6 +900,22 @@ namespace TacOverlay
             }
         }
 
+        // what the round button under the mouse does, shown on the tablet's status line (null = nothing under the mouse)
+        string HoverHint()
+        {
+            if (!open || animating) return null;
+            if (gearHover) return "SETTINGS";
+            if (globeHover) return barVisible ? "ADDRESS BAR: HIDE" : "ADDRESS BAR: SHOW";
+            switch (hoverKey)
+            {
+                case "GAME": return gameVisible ? "CLOSE THE GAME" : "GAME: RUN AWAY FROM NIVE";
+                case "NOTES": return notesVisible ? "CLOSE THE NOTES" : "NOTES PAD";
+                case "TIMERMENU": return "TIMERS AND STOPWATCH";
+                case "LIVE": return cfg.LiveMini ? "LIVE CORNER VIEW IS ON" : "LIVE CORNER VIEW IS OFF";
+            }
+            return null;
+        }
+
         // Draws the top `vis` fraction of the tablet at width w. holeCut = punch the screen out so the page shows through.
         Bitmap RenderTablet(int w, double vis, bool holeCut, bool hq, bool fade)
         {
@@ -917,7 +997,7 @@ namespace TacOverlay
                         float fs = (float)Math.Max(9.0, 8.5 * sc);
                         if (vis > 0.9)
                         {
-                            CenterText(g, cfg.LockMouse ? "MOUSE LOCKED" : "TABLET ACTIVE", fs, txt, cx, l1, maxW);
+                            CenterText(g, HoverHint() ?? (cfg.LockMouse ? "MOUSE LOCKED" : "TABLET ACTIVE"), fs, txt, cx, l1, maxW);
                             CenterText(g, "[" + cfg.ToggleKey + "] minimize", fs, txt, cx, l2, maxW);
                         }
                         else
@@ -934,7 +1014,7 @@ namespace TacOverlay
                 {
                     float d = (float)(7 * sc), cx = (float)(150 * sc), cy = (float)(334 * sc);
                     using (Brush led = new SolidBrush(accent)) g.FillEllipse(led, cx - d / 2, cy - d / 2, d, d);
-                    string status = (cfg.LockMouse ? "MOUSE LOCKED" : "TABLET ACTIVE") + "   [" + cfg.ToggleKey + "] minimize";
+                    string status = HoverHint() ?? (cfg.LockMouse ? "MOUSE LOCKED" : "TABLET ACTIVE") + "   [" + cfg.ToggleKey + "] minimize";
                     using (Font f = new Font("Consolas", Math.Max(7f, (float)(9.5 * sc)), FontStyle.Bold, GraphicsUnit.Pixel))
                     using (Brush txt = new SolidBrush(txtCol))
                     {
@@ -1099,6 +1179,7 @@ namespace TacOverlay
             webShown = false;
             LiveShown = false;
             if (ctl != null) ctl.IsVisible = false;
+            if (gameCtl != null) gameCtl.IsVisible = false;
             if (webHost != null) Native.ShowWindow(webHost.Handle, Native.SW_HIDE);
         }
 
@@ -1306,6 +1387,7 @@ namespace TacOverlay
             if (!animating) openRect = frame;       // remember where the user left it
             dockRect = ComputeDockRect();
             ReleaseInput();                         // mouse and keyboard go back to the game
+            CloseGame();                            // the game panel stops when the tablet is minimized
             HideWeb();
             SaveState();
             open = false;
@@ -1430,6 +1512,7 @@ namespace TacOverlay
         {
             animating = false;
             animV = 0.0;
+            CloseGame();      // (asked for while the tablet was folding away)
             ScheduleTrim();   // minimized and idle: tidy up memory a moment from now
             if (cfg.LiveMini && ctl != null)
             {
@@ -1459,7 +1542,8 @@ namespace TacOverlay
             grabUntil = Environment.TickCount + 1200;
             Native.ClipCursor(IntPtr.Zero); // release any cursor lock the game set
             Native.ForceForeground(webHost.Handle);
-            if (ctl != null) ctl.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
+            if (gameVisible && gameCtl != null) gameCtl.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);   // opened for the game: keys go to it
+            else if (ctl != null) ctl.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
             UpdateClip();
             if (clipTimer != null && !clipTimer.Enabled) clipTimer.Start();
         }
@@ -1711,7 +1795,7 @@ namespace TacOverlay
             if (update != null)
             {
                 ToolStripItem up = menu.Items.Add("Update available: v" + (update.Latest ?? update.Minimum) + "  -  update now", null, delegate { RunUpdate(); });
-                up.ForeColor = Color.FromArgb(0, 130, 40);
+                up.ForeColor = Color.FromArgb(150, 215, 90);
                 menu.Items.Add(new ToolStripSeparator());
             }
             menu.Items.Add("Expand / minimize  (" + cfg.ToggleKey + ")", null, delegate { ToggleOverlay(); });
@@ -1720,6 +1804,7 @@ namespace TacOverlay
             liveItem.Click += delegate { SetLiveMini(!cfg.LiveMini); };
             menu.Items.Add(liveItem);
             menu.Items.Add("Settings...", null, delegate { OpenSettings(); });
+            menu.Items.Add("Run Away From Nive (game)", null, delegate { ToggleGame(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Bigger / smaller  (" + cfg.SizeKey + ")", null, delegate { CycleSize(); });
             menu.Items.Add("Transparency  (" + cfg.OpacityKey + ")", null, delegate { CycleOpacity(); });
@@ -1738,6 +1823,7 @@ namespace TacOverlay
         void BuildTray()
         {
             menu = new ContextMenuStrip();
+            DarkMenu.Apply(menu);
             BuildMenu();
             ContextMenuStrip = menu;
 
@@ -1862,6 +1948,43 @@ namespace TacOverlay
                 // the new version is already starting and waits for this one to close
                 Quit();
                 Environment.Exit(0);
+            }
+        }
+
+        // At start-up: ask in the background, then act on the answer on this thread. If it fails for any reason the app just
+        // carries on.
+        public void CheckForUpdatesAtStart(string url, bool localTest)
+        {
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Updater.Info i = Updater.Check(url, 4000);
+                if (!i.Ok) return;
+                try { BeginInvoke((MethodInvoker)delegate { StartUpdateResult(i, localTest); }); } catch { }   // (the app already closed)
+            });
+        }
+
+        void StartUpdateResult(Updater.Info i, bool localTest)
+        {
+            if (IsDisposed) return;
+            if (Updater.IsRequired(i))
+            {
+                // out of date: it may not keep running without the update
+                bool was; FreeMouseBegin(out was);
+                try
+                {
+                    if (Updater.CanAutoUpdate(i)) Updater.ShowUpdateDialog(i, true, CurrentScreen().Bounds, localTest);   // starts the new version itself
+                    else Updater.ShowRequiredDialog(i, CurrentScreen().Bounds);
+                }
+                finally { FreeMouseEnd(was); }
+                Quit();
+                Environment.Exit(0);
+            }
+            else if (Updater.IsNewer(i))
+            {
+                update = i;
+                BuildMenu();
+                // a newer version exists: offer the one-click update right away ("Later" just carries on)
+                if (Updater.CanAutoUpdate(i)) RunUpdate();
             }
         }
 
@@ -2228,6 +2351,30 @@ namespace TacOverlay
                 return;
             }
 
+            // developer helper: open the game panel, check its size / keys / rules, and save pictures (see Tools.cs)
+            if (args.Length >= 2 && args[0] == "--gametest")
+            {
+                Directory.CreateDirectory(args[1]);
+                Native.SetProcessDPIAware();
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Program.TestMode = true;
+                string gameDir = args[1];
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += delegate (object s, System.Threading.ThreadExceptionEventArgs e) { try { File.AppendAllText(Path.Combine(gameDir, "crash.txt"), "THREAD: " + e.Exception + "\r\n"); } catch { } };
+                Config gc = new Config();
+                gc.LockMouse = false; gc.Animate = false; gc.AlertBeep = false;
+                gc.ToggleKey = "Ctrl+Alt+Shift+F11"; gc.SizeKey = "Ctrl+Alt+Shift+F10"; gc.OpacityKey = "Ctrl+Alt+Shift+F9";
+                gc.PeekKey = gc.NotesKey = gc.LiveKey = gc.DragKey = gc.Timer1Key = gc.Timer2Key = gc.StopwatchKey = "";
+                if (args.Length >= 3) gc.Layout = Layouts.Get(args[2]).Id;
+                if (Screen.AllScreens.Length > 1) gc.Monitor = Screen.AllScreens[Screen.AllScreens.Length - 1].DeviceName;
+                OverlayForm gf = new OverlayForm(gc, "");
+                gf.Init(true);
+                gf.RunGameTest(args[1]);
+                Application.Run();
+                return;
+            }
+
             // developer helper: run with a test PEEK hotkey and log when the tablet opens / closes (a script holds the key)
             if (args.Length >= 2 && args[0] == "--peektest")
             {
@@ -2467,26 +2614,10 @@ namespace TacOverlay
                 }
                 if (firstRun) { try { cfg.Save(cfgPath); } catch { } }
 
-                // Update check (a few seconds at most; if it fails for any reason the app just starts normally).
-                string upUrl = cfg.UpdateUrl.Length > 0 ? cfg.UpdateUrl : Updater.DefaultInfoUrl;
-                Updater.Info upInfo = Updater.Check(upUrl, 4000);
-                bool localTest = cfg.UpdateUrl.Length > 0;
-                if (Updater.IsRequired(upInfo))
-                {
-                    // out of date: don't start until they update
-                    if (Updater.CanAutoUpdate(upInfo)) Updater.ShowUpdateDialog(upInfo, true, area, localTest);   // true = the new version is starting
-                    else Updater.ShowRequiredDialog(upInfo, area);
-                    return;
-                }
-                if (Updater.IsNewer(upInfo) && Updater.CanAutoUpdate(upInfo))
-                {
-                    // a newer version exists: offer the one-click update right at startup ("Later" just carries on)
-                    if (Updater.ShowUpdateDialog(upInfo, false, area, localTest)) return;
-                }
-
                 OverlayForm form = new OverlayForm(cfg, cfgPath);
-                if (Updater.IsNewer(upInfo)) form.SetUpdate(upInfo);
                 form.Init(firstRun);
+                // The update check runs in the background, so the tablet is there at once even on a slow connection.
+                form.CheckForUpdatesAtStart(cfg.UpdateUrl.Length > 0 ? cfg.UpdateUrl : Updater.DefaultInfoUrl, cfg.UpdateUrl.Length > 0);
                 Application.Run();
             }
         }

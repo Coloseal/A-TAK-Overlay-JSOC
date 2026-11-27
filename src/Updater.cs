@@ -31,7 +31,7 @@ namespace TacOverlay
     static class Updater
     {
         // Bump this every time you release a new exe (and rebuild).
-        public const string Version = "1.1.4";
+        public const string Version = "1.2.0";
 
         // Address of the update info file. Set this once the file is hosted (e.g. a raw GitHub URL).
         // Empty = update checking is switched off.
@@ -58,23 +58,79 @@ namespace TacOverlay
             return "https://github.com/" + m.Groups[1].Value + "/" + m.Groups[2].Value + "/releases/download/v" + v + "/TacMapOverlay-v" + v + ".zip";
         }
 
-        public static bool CanAutoUpdate(Info i) { return ZipUrl(i).Length > 0; }
+        // One click needs a download address AND the fingerprint to check it against; without both it is a manual download.
+        public static bool CanAutoUpdate(Info i) { return ZipUrl(i).Length > 0 && IsSha256(i.Sha256); }
 
-        // Only GitHub addresses are accepted (a local test server only when the update address was overridden for testing).
+        static bool IsSha256(string s)
+        {
+            if (s == null || s.Length != 64) return false;
+            foreach (char c in s) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+            return true;
+        }
+
+        // The project's own release pages ("https://github.com/OWNER/REPO/releases"), worked out from DefaultInfoUrl.
+        // Nothing else is ever downloaded or opened - not even another GitHub project - whatever the info file says.
+        static string OfficialReleases
+        {
+            get
+            {
+                System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(DefaultInfoUrl, @"^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/");
+                return m.Success ? "https://github.com/" + m.Groups[1].Value + "/" + m.Groups[2].Value + "/releases" : "";
+            }
+        }
+
+        public static bool IsOfficialAddress(string url, string below)
+        {
+            Uri u;
+            if (url == null || url.IndexOf('%') >= 0 || url.IndexOf("..", StringComparison.Ordinal) >= 0 || url.IndexOf('\\') >= 0) return false;   // no tricks
+            if (OfficialReleases.Length == 0 || !Uri.TryCreate(url, UriKind.Absolute, out u) || u.Scheme != "https" || !u.IsDefaultPort || u.UserInfo.Length > 0) return false;
+            // compare the cleaned-up form ("..", backslashes and such are already resolved by Uri)
+            string full = u.GetLeftPart(UriPartial.Path), want = OfficialReleases + below;
+            return full.Equals(want.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) || full.StartsWith(want.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // A local test server is allowed only when the update address was overridden for testing.
         static bool AllowedUrl(string url, bool allowLocal)
         {
             Uri u;
             if (!Uri.TryCreate(url, UriKind.Absolute, out u)) return false;
             if (allowLocal && u.Scheme == "http" && (u.Host == "localhost" || u.Host == "127.0.0.1")) return true;
-            if (u.Scheme != "https") return false;
-            string h = u.Host.ToLowerInvariant();
-            return h == "github.com" || h.EndsWith(".github.com") || h.EndsWith(".githubusercontent.com");
+            return IsOfficialAddress(url, "/download/");
         }
 
         // Delete the leftovers of a previous update (old files are renamed to *.old while the program is running).
+        // Only the program's OWN files are touched: the program may live in a folder (Downloads, Desktop ...) with other
+        // people's *.old files in it.
         public static void CleanOld()
         {
-            try { foreach (string f in Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.old")) { try { File.Delete(f); } catch { } } } catch { }
+            try
+            {
+                string dir = AppDomain.CurrentDomain.BaseDirectory;
+                string[] own = { Path.GetFileName(Application.ExecutablePath), "TacOverlay.exe", "Microsoft.Web.WebView2.Core.dll", "WebView2Loader.dll",
+                                 "LICENSE.txt", "THIRD-PARTY-NOTICES.txt", "PRIVACY-AND-SECURITY.txt", "enrique.mp3", "enrique-slowed.mp3", "fnaf2-ambience.mp3" };
+                foreach (string folder in new string[] { dir, Path.Combine(dir, "sounds") })
+                {
+                    if (!Directory.Exists(folder)) continue;
+                    foreach (string f in Directory.GetFiles(folder, "*.old"))
+                    {
+                        if (!IsOwnLeftover(Path.GetFileName(f), own)) continue;
+                        try { File.Delete(f); } catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // "name.old" or "name.<ticks>.old" for one of our file names
+        public static bool IsOwnLeftover(string file, string[] own)
+        {
+            foreach (string n in own)
+            {
+                if (file.Equals(n + ".old", StringComparison.OrdinalIgnoreCase)) return true;
+                if (file.StartsWith(n + ".", StringComparison.OrdinalIgnoreCase) &&
+                    System.Text.RegularExpressions.Regex.IsMatch(file.Substring(n.Length), @"^\.\d+\.old$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return true;
+            }
+            return false;
         }
 
         public static Version Current { get { return new Version(Version); } }
@@ -92,7 +148,7 @@ namespace TacOverlay
             {
                 try
                 {
-                    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | (SecurityProtocolType)768 | (SecurityProtocolType)192;
+                    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;   // TLS 1.2 only
                     string u = url;
                     if (u.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                         u += (u.IndexOf('?') >= 0 ? "&" : "?") + "t=" + DateTime.UtcNow.Ticks;   // skip caches
@@ -102,7 +158,11 @@ namespace TacOverlay
                     string text;
                     using (WebResponse resp = req.GetResponse())
                     using (StreamReader sr = new StreamReader(resp.GetResponseStream()))
-                        text = sr.ReadToEnd();
+                    {
+                        char[] buf = new char[65536];   // the real file is a few lines; never read more than this
+                        int got = sr.ReadBlock(buf, 0, buf.Length);
+                        text = new string(buf, 0, got);
+                    }
                     Parse(text, result);
                 }
                 catch { result.Ok = false; }
@@ -147,8 +207,9 @@ namespace TacOverlay
         {
             try
             {
-                string url = (i != null && i.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) ? i.Url : null;
-                if (url != null) Process.Start(url);
+                // only the project's own release page is ever opened in the browser, whatever the info file says
+                string url = (i != null && IsOfficialAddress(i.Url, "")) ? i.Url : OfficialReleases + "/latest";
+                if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) Process.Start(url);
             }
             catch { }
         }
@@ -209,7 +270,7 @@ namespace TacOverlay
                 go.Click += delegate
                 {
                     if (busy) return;
-                    if (!AllowedUrl(zipUrl, allowLocal)) { fail("The update address isn't a GitHub address, so it was not trusted."); return; }
+                    if (!AllowedUrl(zipUrl, allowLocal)) { fail("The update address isn't this project's own GitHub release, so it was not trusted."); return; }
                     busy = true; go.Enabled = false; manual.Visible = false; later.Text = "Cancel";
                     pb.Value = 0; pb.Visible = true; status.ForeColor = Color.FromArgb(150, 205, 90); status.Text = "Downloading...";
                     string dir = Path.Combine(Path.GetTempPath(), "TacOverlayUpdate");
@@ -218,7 +279,7 @@ namespace TacOverlay
                     string zipPath = Path.Combine(dir, "update.zip");
                     try
                     {
-                        ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | (SecurityProtocolType)768 | (SecurityProtocolType)192;
+                        ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
                         wc = new WebClient();
                         wc.Headers[HttpRequestHeader.UserAgent] = "TacMapOverlay-updater";
                         wc.DownloadProgressChanged += delegate (object s, DownloadProgressChangedEventArgs e)
@@ -274,8 +335,8 @@ namespace TacOverlay
         {
             try
             {
-                if (info.Sha256.Length > 0)
                 {
+                    if (!IsSha256(info.Sha256)) return "The update has no fingerprint to check, so it was not installed.";
                     string hash;
                     using (SHA256 sha = SHA256.Create())
                     using (FileStream fs = File.OpenRead(zipPath))
@@ -378,7 +439,7 @@ namespace TacOverlay
                 dl.Text = "Download update"; dl.FlatStyle = FlatStyle.Flat; dl.ForeColor = Color.FromArgb(150, 205, 90);
                 dl.BackColor = Color.FromArgb(34, 38, 31); dl.FlatAppearance.BorderColor = Color.FromArgb(150, 205, 90);
                 dl.SetBounds(20, 212, 200, 34);
-                dl.Enabled = i.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+                dl.Enabled = true;   // OpenDownload always lands on this project's release page
                 dl.Click += delegate { OpenDownload(i); f.Close(); };
 
                 Button quit = new Button();

@@ -118,6 +118,7 @@ namespace TacOverlay
         System.Windows.Forms.Timer barTimer;
         int lastBlockedShown = -1;
         int lastDownloadNote;
+        int lastCrashReload = -60000;
 
         // ---------- ad / tracker list ----------
         static HashSet<string> blockHosts;
@@ -211,19 +212,22 @@ namespace TacOverlay
             return "";
         }
 
+        // Is this a machine on your own network (the only place plain http is allowed)? Real addresses only: a public name that
+        // merely STARTS like one ("10.example.com") does not count.
         static bool IsLocalHost(string host)
         {
             if (string.IsNullOrEmpty(host)) return false;
             host = host.ToLowerInvariant();
-            if (host == "localhost" || host == "::1" || host == "[::1]" || host.EndsWith(".local") || host.EndsWith(".localhost") || host.IndexOf('.') < 0) return true;
-            if (host.StartsWith("127.") || host.StartsWith("10.") || host.StartsWith("192.168.")) return true;
-            if (host.StartsWith("172."))
+            if (host == "localhost" || host.EndsWith(".local") || host.EndsWith(".localhost")) return true;
+            System.Net.IPAddress ip;
+            if (System.Net.IPAddress.TryParse(host.Trim('[', ']'), out ip))
             {
-                string[] p = host.Split('.');
-                int second;
-                if (p.Length > 1 && int.TryParse(p[1], out second) && second >= 16 && second <= 31) return true;
+                if (System.Net.IPAddress.IsLoopback(ip)) return true;
+                byte[] b = ip.GetAddressBytes();
+                if (b.Length == 4) return b[0] == 10 || (b[0] == 192 && b[1] == 168) || (b[0] == 172 && b[1] >= 16 && b[1] <= 31) || (b[0] == 169 && b[1] == 254);
+                return (b[0] & 0xFE) == 0xFC || (b[0] == 0xFE && (b[1] & 0xC0) == 0x80);   // IPv6 private / link-local
             }
-            return false;
+            return host.IndexOf('.') < 0 && host.IndexOf(':') < 0;   // a bare computer name on your own network
         }
 
         static string JsString(string s)
@@ -352,6 +356,18 @@ namespace TacOverlay
             {
                 fullscreenEl = wv.ContainsFullScreenElement;
                 if (webShown) PositionWeb();
+            };
+            // the page engine crashed: bring the page back by itself instead of leaving a dead screen
+            wv.ProcessFailed += delegate (object s, CoreWebView2ProcessFailedEventArgs e)
+            {
+                AppLog.Write("page engine problem: " + e.ProcessFailedKind);
+                if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited && unchecked(Environment.TickCount - lastCrashReload) > 30000)
+                {
+                    lastCrashReload = Environment.TickCount;
+                    BeginInvoke((MethodInvoker)delegate { try { wv.Reload(); } catch { } });
+                }
+                else if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited)
+                    BeginInvoke((MethodInvoker)delegate { try { tray.ShowBalloonTip(5000, "Tac Map Overlay", "The page engine stopped. Quit from the tray icon and start the app again.", ToolTipIcon.Warning); } catch { } });
             };
             // Ctrl+L = jump to the address bar
             ctl.AcceleratorKeyPressed += delegate (object s, CoreWebView2AcceleratorKeyPressedEventArgs e)
@@ -547,11 +563,13 @@ setInterval(function(){
         void LayoutBar(double sc, int m, int w, int h)
         {
             bool show = bar != null && barVisible && !fullscreenEl;
-            bool showNotes = notes != null && notesVisible && !fullscreenEl;
-            bool showTools = tools != null && toolsVisible && !fullscreenEl && !showNotes;
-            SidePanel rp = showNotes ? (SidePanel)notes : (showTools ? (SidePanel)tools : null);
+            bool showGame = game != null && gameVisible && !fullscreenEl;
+            bool showNotes = notes != null && notesVisible && !fullscreenEl && !showGame;
+            bool showTools = tools != null && toolsVisible && !fullscreenEl && !showNotes && !showGame;
+            SidePanel rp = showGame ? (SidePanel)game : (showNotes ? (SidePanel)notes : (showTools ? (SidePanel)tools : null));
             if (notes != null && rp != notes) notes.Visible = false;
             if (tools != null && rp != tools) tools.Visible = false;
+            if (game != null && rp != game) game.Visible = false;
             int barH = show ? (int)Math.Max(28, Math.Min(52, Math.Round(15.5 * sc))) : 0;
             int pad = (int)Math.Round(HoleRadius * sc * 0.35);
             // pilot display with labels: keep the bar / notes clear of the label strips along the screen edges
@@ -576,13 +594,22 @@ setInterval(function(){
             int pageW = w;
             if (rp != null)
             {
-                int nw = (int)Math.Round((w - 2 * m) * (showTools ? 0.38 : 0.34));
+                int nw = (int)Math.Round((w - 2 * m) * (showGame ? 1.0 / 3.0 : (showTools ? 0.38 : 0.34)));   // the game panel is exactly a third of the screen
                 int nx = w - m - rightInset - nw, nb = m + Math.Max(2, pad / 2) + botInset;
                 rp.SetBounds(nx, notesTop, nw, Math.Max(40, h - nb - notesTop));
                 rp.Relayout(nw, rp.Height, sc);
                 rp.Visible = true;
                 pageW = nx;
                 notesLeftInFrame = (float)(holeX + nx);
+            }
+            if (gameCtl != null)
+            {
+                if (showGame)
+                {
+                    gameCtl.Bounds = game.ViewArea;
+                    gameCtl.IsVisible = true;
+                }
+                else gameCtl.IsVisible = false;
             }
             // optional: the page never sits under the labels (a bit smaller, nothing hidden)
             bool inset = lab && cfg.LabelInset;

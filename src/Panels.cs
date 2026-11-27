@@ -202,6 +202,7 @@ namespace TacOverlay
             new string[] { "BM4", "Bookmark 4" }, new string[] { "BM5", "Bookmark 5" }, new string[] { "BM6", "Bookmark 6" },
             new string[] { "LOG", "Add a time-stamped log line" }, new string[] { "LOGV", "Copy the mission log" },
             new string[] { "CALC", "Bearing / distance tool" }, new string[] { "N9L", "9-line template" }, new string[] { "CHK", "Checklist" },
+            new string[] { "GAME", "Run Away From Nive (game)" },
             new string[] { "PR1", "Layout preset 1" }, new string[] { "PR2", "Layout preset 2" }, new string[] { "PR3", "Layout preset 3" },
             new string[] { "SET", "Settings" }, new string[] { "UPD", "Check for updates" }, new string[] { "CLRD", "Clear browsing data" }
         };
@@ -469,6 +470,7 @@ namespace TacOverlay
                 case "CALC": state = (toolsVisible && toolsTab == 0) ? 1 : 0; return "BRG/DIST";
                 case "N9L": state = (toolsVisible && toolsTab == 1) ? 1 : 0; return "9-LINE";
                 case "CHK": state = (toolsVisible && toolsTab == 2) ? 1 : 0; return "CHECKLIST";
+                case "GAME": state = gameVisible ? 1 : 0; return "RUN AWAY";
                 case "PR1": case "PR2": case "PR3": state = cfg.Presets[id[2] - '1'].Length > 0 ? 0 : 2; return "PRESET " + id[2];
                 case "SET": return "SETTINGS";
                 case "UPD": return "UPDATE";
@@ -603,16 +605,18 @@ namespace TacOverlay
         PointF LiveBtnCenter(int w) { double sc = w / (double)ImgW; return new PointF((float)((DeviceArt.Cur.Gear.X - 62) * sc), (float)(DeviceArt.Cur.Gear.Y * sc)); }
         PointF TimerBtnCenter(int w) { double sc = w / (double)ImgW; return new PointF((float)((DeviceArt.Cur.Gear.X - 93) * sc), (float)(DeviceArt.Cur.Gear.Y * sc)); }
         PointF NotesBtnCenter(int w) { double sc = w / (double)ImgW; return new PointF((float)((DeviceArt.Cur.Gear.X - 124) * sc), (float)(DeviceArt.Cur.Gear.Y * sc)); }
+        PointF GameBtnCenter(int w) { double sc = w / (double)ImgW; return new PointF((float)((DeviceArt.Cur.Gear.X - 155) * sc), (float)(DeviceArt.Cur.Gear.Y * sc)); }
 
         void DrawAtakButtons(Graphics g, int w, float gr)
         {
             if (IsPilot) return;
-            PointF tc = TimerBtnCenter(w), nc = NotesBtnCenter(w), lc = LiveBtnCenter(w);
-            bool tHot = hoverKey == "TIMERMENU", nHot = hoverKey == "NOTES" || notesVisible, lHot = hoverKey == "LIVE" || cfg.LiveMini;
+            PointF tc = TimerBtnCenter(w), nc = NotesBtnCenter(w), lc = LiveBtnCenter(w), gc = GameBtnCenter(w);
+            bool tHot = hoverKey == "TIMERMENU", nHot = hoverKey == "NOTES" || notesVisible, lHot = hoverKey == "LIVE" || cfg.LiveMini, gHot = hoverKey == "GAME" || gameVisible;
             bool anyRun = AnyAlert; foreach (Tmr t in tmrs) if (t.Running) anyRun = true; if (stwRunning || msnRunning) anyRun = true;
-            foreach (int which in new int[] { 0, 1, 2 })
+            foreach (int which in new int[] { 0, 1, 2, 3 })
             {
-                PointF c = which == 0 ? tc : (which == 1 ? nc : lc); bool lit = which == 0 ? (tHot || anyRun) : (which == 1 ? nHot : lHot);
+                PointF c = which == 0 ? tc : (which == 1 ? nc : (which == 2 ? lc : gc));
+                bool lit = which == 0 ? (tHot || anyRun) : (which == 1 ? nHot : (which == 2 ? lHot : gHot));
                 Color col = lit ? Color.FromArgb(150, 205, 90) : Color.FromArgb(205, 212, 192);
                 if (which == 0 && AnyAlert) col = StateColor(3);
                 using (Brush back = new SolidBrush(Color.FromArgb(30, 32, 26)))
@@ -635,10 +639,22 @@ namespace TacOverlay
                         g.DrawRectangle(p, c.X - r * 0.75f, c.Y - r, r * 1.5f, r * 2f);
                         for (int i = 0; i < 3; i++) g.DrawLine(p, c.X - r * 0.45f, c.Y - r * 0.45f + i * r * 0.5f, c.X + r * 0.45f, c.Y - r * 0.45f + i * r * 0.5f);
                     }
-                    else
+                    else if (which == 2)
                     {   // live corner view: a screen with a small picture-in-picture window in its corner
                         g.DrawRectangle(p, c.X - r * 1.0f, c.Y - r * 0.72f, r * 2f, r * 1.44f);
                         using (Brush fb = new SolidBrush(col)) g.FillRectangle(fb, c.X + r * 0.1f, c.Y + r * 0.02f, r * 0.7f, r * 0.5f);
+                    }
+                    else
+                    {   // game: a controller with a cross pad on the left and two buttons on the right
+                        float bw = r * 1.05f, bh = r * 0.72f, dot = Math.Max(1.4f, r * 0.15f);
+                        g.DrawRectangle(p, c.X - bw, c.Y - bh, bw * 2f, bh * 2f);
+                        g.DrawLine(p, c.X - bw * 0.72f, c.Y, c.X - bw * 0.26f, c.Y);
+                        g.DrawLine(p, c.X - bw * 0.49f, c.Y - bh * 0.38f, c.X - bw * 0.49f, c.Y + bh * 0.38f);
+                        using (Brush fb = new SolidBrush(col))
+                        {
+                            g.FillEllipse(fb, c.X + bw * 0.28f - dot, c.Y - bh * 0.22f - dot, dot * 2f, dot * 2f);
+                            g.FillEllipse(fb, c.X + bw * 0.58f - dot, c.Y + bh * 0.2f - dot, dot * 2f, dot * 2f);
+                        }
                     }
                 }
             }
@@ -662,6 +678,8 @@ namespace TacOverlay
                 float gr = GearRadius(frame.Width); float r = Math.Max(13f, gr);
                 PointF lv = LiveBtnCenter(frame.Width);
                 if ((p.X - lv.X) * (p.X - lv.X) + (p.Y - lv.Y) * (p.Y - lv.Y) <= r * r) return "LIVE";
+                PointF gm = GameBtnCenter(frame.Width);
+                if ((p.X - gm.X) * (p.X - gm.X) + (p.Y - gm.Y) * (p.Y - gm.Y) <= r * r) return "GAME";
                 PointF t = TimerBtnCenter(frame.Width), n = NotesBtnCenter(frame.Width);
                 if ((p.X - t.X) * (p.X - t.X) + (p.Y - t.Y) * (p.Y - t.Y) <= r * r) return "TIMERMENU";
                 if ((p.X - n.X) * (p.X - n.X) + (p.Y - n.Y) * (p.Y - n.Y) <= r * r) return "NOTES";
@@ -698,6 +716,7 @@ namespace TacOverlay
                 case "CALC": ShowTools(0); break;
                 case "N9L": ShowTools(1); break;
                 case "CHK": ShowTools(2); break;
+                case "GAME": ToggleGame(); break;
                 case "PR1": ApplyPreset(0); break;
                 case "PR2": ApplyPreset(1); break;
                 case "PR3": ApplyPreset(2); break;
@@ -782,6 +801,7 @@ namespace TacOverlay
         {
             if (timerMenu != null) timerMenu.Dispose();
             timerMenu = new ContextMenuStrip();
+            DarkMenu.Apply(timerMenu);
             for (int i = 0; i < 4; i++)
             {
                 int idx = i;
@@ -1046,6 +1066,7 @@ namespace TacOverlay
         {
             if (notes == null) return;
             if (show && toolsVisible) { toolsVisible = false; if (tools != null) tools.SaveAll(); }
+            if (show) CloseGame();
             notesVisible = show;
             if (webShown) PositionWeb();
             RenderState(true);
